@@ -62,7 +62,7 @@ def train(args):
     # Load training and validation tokens, vector instances (input vector) and labels
     train_t, train_v, train_l = get_input(args, word_emb, TRAIN_FILE_NAME)
     valid_t, valid_v, valid_l = get_input(args, word_emb, VALID_FILE_NAME)
-    test_t, test_v, test_l = get_input(args, word_emb, VALID_FILE_NAME)
+    test_t, test_v, test_l = get_input(args, word_emb, TEST_FILE_NAME)
     n_input = len(train_v[0])
     print("Input size detected ", n_input)
     hyperparams = ModelHypPrms(n_input, args.n_classes, args.hid_dim, args.lrn_rate)
