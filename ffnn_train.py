@@ -3,22 +3,24 @@ A Deep Neural network with two layers for independent classification
 '''
 
 from __future__ import print_function
-import sys, io, codecs
-import numpy as np
-import tensorflow as tf
+
 import argparse
+import cPickle as pickle
 from os import listdir
 from os.path import isfile, join
 
-from utils import WordEmb, tokenize_document
-from utils import f1score, write_results, write_pred_and_entities, phrasalf1score
+# import sys, io, codecs
+import numpy as np
+import tensorflow as tf
 
 from ff_model import FFModel, ModelHypPrms
-import cPickle as pickle
+from utils import (WordEmb, f1score, phrasalf1score, tokenize_document,
+                   write_pred_and_entities, write_results)
 
 MODEL_NAME = "FFNN"
 TRAIN_FILE_NAME = "data/train-io.txt"
 VALID_FILE_NAME = "data/valid-io.txt"
+TEST_FILE_NAME = "data/test-io.txt"
 HYPRM_FILE_NAME = "hyperprms.pkl"
 
 def get_input(args, word_emb_model, input_file):
@@ -60,6 +62,7 @@ def train(args):
     # Load training and validation tokens, vector instances (input vector) and labels
     train_t, train_v, train_l = get_input(args, word_emb, TRAIN_FILE_NAME)
     valid_t, valid_v, valid_l = get_input(args, word_emb, VALID_FILE_NAME)
+    test_t, test_v, test_l = get_input(args, word_emb, VALID_FILE_NAME)
     n_input = len(train_v[0])
     print("Input size detected ", n_input)
     hyperparams = ModelHypPrms(n_input, args.n_classes, args.hid_dim, args.lrn_rate)
@@ -113,13 +116,13 @@ def train(args):
                         maxf1 = val_f1
                         print("Saving model to {}".format(save_loc))
                         saver.save(sess, save_loc)
-                        # evaluate(test_t, test_v, test_l, True)
+                        evaluate(test_t, test_v, test_l, True)
             print("Optimization Finished!")
         # Load best model and evaluate model on the test set before applying to production
         saver = tf.train.import_meta_graph(save_loc + '.meta')
         saver.restore(sess, save_loc)
         print("Model from {} restored.".format(save_loc))
-        # evaluate(test_t, test_v, test_l, True)
+        evaluate(test_t, test_v, test_l, True)
         # load the pubmed files for annotation pubdir
         # pub_files = [f for f in listdir(args.pubdir) if isfile(join(args.pubdir, f))]
         # for _, pubfile in enumerate(pub_files):
@@ -150,8 +153,6 @@ def main():
     # Hyperparameters
     parser.add_argument('--hid_dim', type=int, default=100, help='dimension of hidden layers')
     parser.add_argument('--lrn_rate', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--feat_cap', type=str, default=None, help='Capitalization feature')
-    parser.add_argument('--feat_dict', type=str, default=None, help='Dictionary feature')
     parser.add_argument('--dropout', type=float, default=0.5, help='dropout probability')
     # Settings
     parser.add_argument('--window_size', type=int, default=5, help='context window size - 3/5/7')

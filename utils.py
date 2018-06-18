@@ -11,7 +11,7 @@ from gensim.models.keyedvectors import KeyedVectors
 
 UNK_FILENAME = "unk.pkl"
 NUM_FILENAME = "num.pkl"
-SPLIT_REGEX = r"(\s|\,|\.|\"|\(|\)|\\|\-|\'|\?|\!|\/|\:|\;|\_|\+|\`|\[|\]|\#|\*|\%|\<|\>|\=|[0-9]+|)"
+SPLIT_REGEX = r"(\s|\,|\.|\"|\(|\)|\\|\-|\'|\?|\!|\/|\:|\;|\_|\+|\`|\[|\]|\#|\*|\%|\<|\>|\=)"
 
 class Token(object):
     '''Token object which contains fields for offsets and annotation'''

@@ -5,6 +5,7 @@ import argparse
 import cPickle as pickle
 import random
 import re
+import sys
 from os import listdir
 from os.path import join
 import codecs
@@ -14,7 +15,7 @@ from gensim.models.keyedvectors import KeyedVectors
 
 from utils import tokenize_document, Annotation
 from utils import UNK_FILENAME, NUM_FILENAME
-from ffnn_train import TRAIN_FILE_NAME, VALID_FILE_NAME
+from ffnn_train import TRAIN_FILE_NAME, VALID_FILE_NAME, TEST_FILE_NAME
 LOC_ANN_TAG = "LOC"
 PRO_ANN_TAG = "EXT"
 WORDEMB_FILENAME = "word-embeddings.pkl"
@@ -32,14 +33,19 @@ def read_annotations(doc_path):
                 if parts[1].startswith("Location") or parts[1].startswith("Protein"):
                     if parts[1].startswith("Location"):
                         ann_type = LOC_ANN_TAG
+                        offset_text = parts[2]
+                        offset_start = int(parts[1].strip().split()[1])
+                        offset_end = int(parts[1].strip().split()[-1])
+                        index += 2
                     elif parts[1].startswith("Protein"):
+                        offset_start = int(parts[1].strip().split()[1])
+                        end_parts = doc_lines[index+2].strip().split("\t")
+                        offset_end = int(end_parts[1].strip().split()[-1])
+                        offset_text = parts[2] + "-" + end_parts[2]
                         ann_type = PRO_ANN_TAG
-                    offset_text = parts[2]
-                    offset_start = int(parts[1].strip().split()[1])
-                    offset_end = int(parts[1].strip().split()[-1])
+                        index += 4
                     ann = Annotation(offset_text, offset_start, offset_end, ann_type)
                     annotations.append(ann)
-            index += 1
     return annotations
 
 def load_train_data(train_dir):
@@ -73,9 +79,36 @@ def load_train_data(train_dir):
     vfile.close()
     return vocab
 
+def load_test_data(train_dir):
+    """load training data"""
+    vocab = set()
+    tfile = codecs.open(TEST_FILE_NAME, 'w', 'utf-8')
+    txt_files = [f for f in listdir(train_dir) if f.endswith(".txt")]
+    for _, txt_file in enumerate(txt_files):
+        print("Reading", txt_file)
+        doc_tokens, file_vocab = tokenize_document(join(train_dir, txt_file))
+        vocab = vocab.union(file_vocab)
+        annotations = read_annotations(join(train_dir, txt_file[:-3]+"ann"))
+        for token in doc_tokens:
+            ignore_token = False
+            for ann in annotations:
+                if token.start >= ann.start and token.end <= ann.end:
+                    # Change this for IOB annotations
+                    if ann.atype == LOC_ANN_TAG:
+                        token.encoding = "I-LOC"
+                    if ann.atype == PRO_ANN_TAG:
+                        ignore_token = True
+                    break
+            if not ignore_token:
+                print(token.text + "\t" + token.encoding, file=tfile)
+    tfile.close()
+    return vocab
+
 def create_embeddings(args):
     '''Create embeddings object and dump pickle for use in subsequent models'''
     vocab = load_train_data(args.train_corpus)
+    test_vocab = load_test_data(args.test_corpus)
+    vocab = vocab.union(test_vocab)
     print("Total vocab:", len(vocab))
     print("Loading word embeddings:", args.emb_loc)
     unk_words = set()
@@ -102,6 +135,8 @@ def main():
     parser = argparse.ArgumentParser()
     # Input and Output paths
     parser.add_argument('--train_corpus', type=str, default='data/train/',
+                        help='path to dir where training corpus files are stored')
+    parser.add_argument('--test_corpus', type=str, default='data/test/',
                         help='path to dir where training corpus files are stored')
     parser.add_argument('--emb_loc', type=str,
                         default="data/PMC-w2v.bin",
