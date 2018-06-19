@@ -46,10 +46,10 @@ def run(args):
     model = FFModel(hyperparams)
     print("Starting session")
     save_loc = join(args.save, MODEL_NAME)
-    # 
     init = tf.global_variables_initializer()
     with tf.Session() as sess:
         sess.run(init)
+        saver = tf.train.Saver()
         saver = tf.train.import_meta_graph(save_loc + '.meta')
         saver.restore(sess, save_loc)
         # load pubmed files
@@ -73,7 +73,7 @@ def main():
     # Word Embeddings
     parser.add_argument('--emb_loc', type=str, default="data/PMC-w2v.bin",
                         help='word2vec embedding location')
-    parser.add_argument('--embvocab', type=int, default=-1,
+    parser.add_argument('--embvocab', type=int, default=30000,
                         help='load top n words in word emb. -1 for all.')
     args = parser.parse_args()
     run(args)

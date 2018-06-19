@@ -8,7 +8,10 @@ import cPickle as pickle
 import re
 import numpy as np
 from gensim.models.keyedvectors import KeyedVectors
+import requests
+from requests.utils import quote
 
+GEONAMES_URL = "http://localhost:8091/location?location="
 UNK_FILENAME = "unk.pkl"
 NUM_FILENAME = "num.pkl"
 SPLIT_REGEX = r"(\s|\,|\.|\"|\(|\)|\\|\-|\'|\?|\!|\/|\:|\;|\_|\+|\`|\[|\]|\#|\*|\%|\<|\>|\=)"
@@ -166,6 +169,29 @@ def get_namedentities(args, tokens, prediction):
     assert len(indices) == len(entities)
     return indices, entities
 
+def get_pred_anns(tokens, prediction):
+    '''Get list of named entitiess'''
+    assert len(tokens) == len(prediction)
+    entities = []
+    text = ''
+    start = -1
+    end = -1
+    for i, label in enumerate(prediction):
+        if label == 0:
+            if text != '':
+                end = tokens[i].end
+                text += " {}".format(tokens[i].text.encode('ascii', 'ignore').decode('ascii'))
+            else:
+                start = tokens[i].start
+                end = tokens[i].end
+                text = "{}".format(tokens[i].text.encode('ascii', 'ignore').decode('ascii'))
+        else:
+            if text != '':
+                entity = Annotation(text, start, end, "LOC")
+                entities.append(entity)
+                text = ''
+    return entities
+
 def get_ne_indexes(args, tags):
     '''Get named entities by indices'''
     entities = []
@@ -230,6 +256,22 @@ def write_results(words, prediction, target, fname='results.txt'):
         print("{}\t{}\t{}".format(words[i], prediction[i], label), file=rfile)
     rfile.close()
 
+def get_ent_concepts(entities):
+    '''Get entity geoname ids'''
+    for entity in entities:
+        url = GEONAMES_URL+quote(entity.text)
+        # print(url)
+        response = requests.get(url)
+        jsondata = response.json()
+        # print(jsondata)
+        if jsondata and int(jsondata["retrieved"]) > 0:
+            # print("Updating")
+            record = jsondata["records"][0]
+            entity.geonameid = record["GeonameId"]
+            entity.lat = record["Latitude"]
+            entity.lon = record["Longitude"]
+    return entities
+
 def write_pred_and_entities(args, tokens, prediction, pmid):
     '''Write results to file'''
     prediction = np.argmax(prediction, 1)
@@ -244,9 +286,12 @@ def write_pred_and_entities(args, tokens, prediction, pmid):
     rfile.close()
     fname = join(args.outdir, pmid + '_nes')
     rfile = codecs.open(fname, 'w', 'utf-8')
-    indices, entities = get_namedentities(args, tokens, prediction)
-    for i, index in enumerate(indices):
-        print("{}\t{}".format(index, entities[i]), file=rfile)
+    entities = get_pred_anns(tokens, prediction)
+    entities = get_ent_concepts(entities)
+    for index, entity in enumerate(entities):
+        # print("{}".format(entity), file=rfile)
+        print("T{}\tLocation {} {}\t{}".format(index, entity.start, entity.end, entity.text), file=rfile)
+        print("#{}\tAnnotatorNotes T{}\t<latlng>{},{}</latlng><geoID>{}</geoID>".format(index, index, entity.lat, entity.lon, entity.geonameid), file=rfile)
     rfile.close()
     print("{}\t{} entities found".format(pmid, len(entities)))
 
