@@ -64,7 +64,7 @@ def main():
     '''Main method : parse input arguments and train'''
     parser = argparse.ArgumentParser()
     # Input files
-    parser.add_argument('dir', type=str, default="data/test",
+    parser.add_argument('dir', type=str,
                         help='Location to dir containing files to be annotated')
     parser.add_argument('--work_dir', type=str, default="resources/",
                         help="working directory containing resource files")
@@ -73,9 +73,10 @@ def main():
                         help='Output dir for annotated pubmed files.'+
                         'Created in same directory by default.')
     # Word Embeddings
-    parser.add_argument('--emb_loc', type=str, default="resources/PMC-w2v.bin",
+    parser.add_argument('--emb_loc', type=str,
+                        default="resources/wikipedia-pubmed-and-PMC-w2v.bin",
                         help='word2vec embedding location')
-    parser.add_argument('--embvocab', type=int, default=400000,
+    parser.add_argument('--embvocab', type=int, default=-1,
                         help='load top n words in word emb. -1 for all.')
     args = parser.parse_args()
     run(args)
