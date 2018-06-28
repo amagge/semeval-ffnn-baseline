@@ -6,8 +6,8 @@ import cPickle as pickle
 import random
 import re
 import sys
-from os import listdir
-from os.path import join
+from os import listdir, makedirs
+from os.path import join, exists
 import codecs
 import numpy as np
 from gensim.models import Word2Vec
@@ -107,8 +107,6 @@ def load_test_data(train_dir):
 def create_embeddings(args):
     '''Create embeddings object and dump pickle for use in subsequent models'''
     vocab = load_train_data(args.train_corpus)
-    test_vocab = load_test_data(args.test_corpus)
-    vocab = vocab.union(test_vocab)
     print("Total vocab:", len(vocab))
     print("Loading word embeddings:", args.emb_loc)
     unk_words = set()
@@ -120,6 +118,8 @@ def create_embeddings(args):
         except KeyError:
             unk_words.add(word)
     print("Number of unknown words:", len(unk_words))
+    if not exists(args.out_dir):
+        makedirs(args.out_dir)
     # Dump dictionary pickle to disk
     print("Dumping training files to", args.out_dir)
     pickle.dump(wemb_dict, open(join(args.out_dir, WORDEMB_FILENAME), "wb"))
@@ -134,14 +134,11 @@ def main():
     '''Main method : parse input arguments and train'''
     parser = argparse.ArgumentParser()
     # Input and Output paths
-    parser.add_argument('--train_corpus', type=str, default='data/train/',
+    parser.add_argument('-t', '--train_corpus', type=str, default='data/train/',
                         help='path to dir where training corpus files are stored')
-    parser.add_argument('--test_corpus', type=str, default='data/test/',
-                        help='path to dir where training corpus files are stored')
-    parser.add_argument('--emb_loc', type=str,
-                        default="data/PMC-w2v.bin",
+    parser.add_argument('-e', '--emb_loc', type=str,
                         help='path to the word2vec embedding location')
-    parser.add_argument('--out_dir', type=str, default='model/',
+    parser.add_argument('-o', '--out_dir', type=str, default='resources/',
                         help='output file containing minimal vocabulary')
     args = parser.parse_args()
     print(args)

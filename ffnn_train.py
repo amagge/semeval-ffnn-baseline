@@ -123,13 +123,6 @@ def train(args):
         saver.restore(sess, save_loc)
         print("Model from {} restored.".format(save_loc))
         evaluate(test_t, test_v, test_l, True)
-        # load the pubmed files for annotation pubdir
-        # pub_files = [f for f in listdir(args.pubdir) if isfile(join(args.pubdir, f))]
-        # for _, pubfile in enumerate(pub_files):
-        #     pub_t, pub_v = get_input_pub(args, word_emb, join(args.pubdir, pubfile))
-        #     prediction = sess.run(model.pred, feed_dict={model.input_x: np.asarray(pub_v),
-        #                                                  model.dropout: 1.0})
-        #     write_pred_and_entities(args, pub_t, prediction, pubfile.replace(".txt", ""))
 
 def main():
     '''Main method : parse input arguments and train'''
@@ -141,12 +134,6 @@ def main():
                         help='test file location')
     parser.add_argument('--val', type=str, default='data/io/val-io.txt',
                         help='val file location')
-    parser.add_argument('--dist', type=str, default='data/dist/',
-                        help='distance supervision files dir.')
-    parser.add_argument('--pubdir', type=str, default='data/pubmed/',
-                        help='pubmed files dir containing production set. ')
-    parser.add_argument('--outdir', type=str, default='out/pubmed/',
-                        help='Output dir for ffmodel annotated pubmed files.')
     # Word Embeddings
     parser.add_argument('--emb_loc', type=str, default="model/word-embeddings.pkl",
                         help='word2vec embedding location')

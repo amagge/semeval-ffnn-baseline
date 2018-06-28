@@ -1,14 +1,15 @@
 """Utility functions for loading datasets and computing performance"""
 from __future__ import print_function
-import os, codecs, io
-import sys
-from os.path import join, isfile
-from random import random
+
+import codecs
 import cPickle as pickle
 import re
+import sys
+from os.path import isfile, join
+
 import numpy as np
-from gensim.models.keyedvectors import KeyedVectors
 import requests
+from gensim.models.keyedvectors import KeyedVectors
 from requests.utils import quote
 
 GEONAMES_URL = "http://localhost:8091/location?location="
@@ -110,24 +111,6 @@ def tokenize_document(doc_path):
         word_offset = doc_text.index(word, current_offset)
         current_offset = word_offset + len(word)
         doc_token = Token(word, word_offset, word_offset+len(word), "O")
-        doc_tokens.append(doc_token)
-        doc_vocab.add(word)
-    return doc_tokens, doc_vocab
-
-def write_annotations(annotations, doc_path):
-    '''Write annotations to file'''
-    with open(doc_path, 'r') as myfile:
-        doc_text = myfile.read()
-    doc_vocab = set()
-    # Split sentences into words and create Token objects
-    doc_tokens = []
-    words = re.split(SPLIT_REGEX, doc_text)
-    words = [word.strip() for word in words if word.strip() != ""]
-    current_offset = 0
-    for word in words:
-        word_offset = doc_text.index(word, current_offset)
-        current_offset = current_offset + len(word)
-        doc_token = Token(word, word_offset, len(word), "O")
         doc_tokens.append(doc_token)
         doc_vocab.add(word)
     return doc_tokens, doc_vocab

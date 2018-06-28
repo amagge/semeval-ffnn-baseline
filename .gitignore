@@ -101,12 +101,10 @@ ENV/
 .mypy_cache/
 
 # Custom project stuff
-data/
 pkl/
 .pkl
 runs/
 .vscode
 model/
-resources/
 trash/
 out/
