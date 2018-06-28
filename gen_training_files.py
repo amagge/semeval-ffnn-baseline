@@ -51,6 +51,7 @@ def read_annotations(doc_path):
 def load_train_data(train_dir):
     """load training data"""
     vocab = set()
+    # keeping 10% of the files for validation
     tfile = codecs.open(TRAIN_FILE_NAME, 'w', 'utf-8')
     vfile = codecs.open(VALID_FILE_NAME, 'w', 'utf-8')
     txt_files = [f for f in listdir(train_dir) if f.endswith(".txt")]
@@ -137,9 +138,10 @@ def main():
     parser.add_argument('-t', '--train_corpus', type=str, default='data/train/',
                         help='path to dir where training corpus files are stored')
     parser.add_argument('-e', '--emb_loc', type=str,
+                        default='resources/wikipedia-pubmed-and-PMC-w2v.bin',
                         help='path to the word2vec embedding location')
     parser.add_argument('-o', '--out_dir', type=str, default='resources/',
-                        help='output file containing minimal vocabulary')
+                        help='output dir containing training related files')
     args = parser.parse_args()
     print(args)
     create_embeddings(args)

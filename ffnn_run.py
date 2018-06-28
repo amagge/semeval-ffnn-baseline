@@ -65,7 +65,7 @@ def main():
     parser = argparse.ArgumentParser()
     # Input files
     parser.add_argument('--save', type=str, default="model/", help="path to saved model")
-    parser.add_argument('--dir', type=str, default="data/testtry",
+    parser.add_argument('--dir', type=str, default="data/test",
                         help='Location to dir containing files to be annotated')
     parser.add_argument('--outdir', type=str, default="out/",
                         help='[Optional] Output dir for ffmodel annotated pubmed files.'+
