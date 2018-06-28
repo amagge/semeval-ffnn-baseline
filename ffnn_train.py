@@ -66,7 +66,7 @@ def train(args):
     print("Input size detected ", n_input)
     hyperparams = ModelHypPrms(n_input, args.n_classes, args.hid_dim, args.lrn_rate)
     # Save hyperparams to disk
-    pickle.dump(hyperparams, open(join(args.save, HYPRM_FILE_NAME), "wb"))
+    pickle.dump(hyperparams, open(join(args.work_dir, HYPRM_FILE_NAME), "wb"))
     # Create model
     model = FFModel(hyperparams)
     # Model checkpoint path
@@ -127,12 +127,8 @@ def main():
     '''Main method : parse input arguments and train'''
     parser = argparse.ArgumentParser()
     # Input files
-    parser.add_argument('--train', type=str, default='data/train',
-                        help='train file location')
-    parser.add_argument('--test', type=str, default='data/test',
-                        help='test file location')
-    parser.add_argument('--val', type=str, default='data/io/val-io.txt',
-                        help='val file location')
+    parser.add_argument('--work_dir', type=str, default="resources/",
+                        help="working directory containing resource files")
     # Word Embeddings
     parser.add_argument('--emb_loc', type=str, default="resources/word-embeddings.pkl",
                         help='word2vec embedding location')

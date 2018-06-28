@@ -56,8 +56,8 @@ class WordEmb(object):
                                                               limit=args.embvocab)
             else:
                 self.wvec = KeyedVectors.load_word2vec_format(args.emb_loc, binary=True)
-        unk_filename = join(args.save, UNK_FILENAME)
-        num_filename = join(args.save, NUM_FILENAME)
+        unk_filename = join(args.work_dir, UNK_FILENAME)
+        num_filename = join(args.work_dir, NUM_FILENAME)
         if isfile(unk_filename) and isfile(num_filename):
             print("Loading unk from file")
             self.unk = pickle.load(open(unk_filename, "rb"))

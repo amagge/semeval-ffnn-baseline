@@ -42,7 +42,7 @@ def run(args):
     '''Run method'''
     word_emb = WordEmb(args)
     print("Loading model")
-    hyperparams = pickle.load(open(join(args.save, HYPRM_FILE_NAME), "rb"))
+    hyperparams = pickle.load(open(join(args.work_dir, HYPRM_FILE_NAME), "rb"))
     model = FFModel(hyperparams)
     print("Starting session")
     save_loc = join(args.save, MODEL_NAME)
@@ -64,16 +64,18 @@ def main():
     '''Main method : parse input arguments and train'''
     parser = argparse.ArgumentParser()
     # Input files
-    parser.add_argument('--save', type=str, default="model/", help="path to saved model")
-    parser.add_argument('--dir', type=str, default="data/test",
+    parser.add_argument('dir', type=str, default="data/test",
                         help='Location to dir containing files to be annotated')
+    parser.add_argument('--work_dir', type=str, default="resources/",
+                        help="working directory containing resource files")
+    parser.add_argument('--save', type=str, default="model/", help="path to saved model")
     parser.add_argument('--outdir', type=str, default="out/",
-                        help='[Optional] Output dir for ffmodel annotated pubmed files.'+
+                        help='Output dir for annotated pubmed files.'+
                         'Created in same directory by default.')
     # Word Embeddings
-    parser.add_argument('--emb_loc', type=str, default="data/PMC-w2v.bin",
+    parser.add_argument('--emb_loc', type=str, default="resources/PMC-w2v.bin",
                         help='word2vec embedding location')
-    parser.add_argument('--embvocab', type=int, default=30000,
+    parser.add_argument('--embvocab', type=int, default=400000,
                         help='load top n words in word emb. -1 for all.')
     args = parser.parse_args()
     run(args)
