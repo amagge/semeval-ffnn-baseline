@@ -14,13 +14,12 @@ import numpy as np
 import tensorflow as tf
 
 from ff_model import FFModel, ModelHypPrms
-from utils import (WordEmb, f1score, phrasalf1score, tokenize_document,
-                   write_pred_and_entities, write_results)
+from utils import (WordEmb, f1score, phrasalf1score, write_results)
 
 MODEL_NAME = "FFNN"
-TRAIN_FILE_NAME = "data/train-io.txt"
-VALID_FILE_NAME = "data/valid-io.txt"
-TEST_FILE_NAME = "data/test-io.txt"
+TRAIN_FILE_NAME = "train-io.txt"
+VALID_FILE_NAME = "valid-io.txt"
+TEST_FILE_NAME = "test-io.txt"
 HYPRM_FILE_NAME = "hyperprms.pkl"
 
 def get_input(args, word_emb_model, input_file):
@@ -60,10 +59,10 @@ def train(args):
     # Load Word Embeddings
     word_emb = WordEmb(args)
     # Load training and validation tokens, vector instances (input vector) and labels
-    train_t, train_v, train_l = get_input(args, word_emb, TRAIN_FILE_NAME)
-    valid_t, valid_v, valid_l = get_input(args, word_emb, VALID_FILE_NAME)
-    test_t, test_v, test_l = get_input(args, word_emb, TEST_FILE_NAME)
-    n_input = len(test_v[0])
+    train_t, train_v, train_l = get_input(args, word_emb, join(args.work_dir, TRAIN_FILE_NAME))
+    valid_t, valid_v, valid_l = get_input(args, word_emb, join(args.work_dir, VALID_FILE_NAME))
+    # test_t, test_v, test_l = get_input(args, word_emb, TEST_FILE_NAME)
+    n_input = len(train_v[0])
     print("Input size detected ", n_input)
     hyperparams = ModelHypPrms(n_input, args.n_classes, args.hid_dim, args.lrn_rate)
     # Save hyperparams to disk
@@ -116,13 +115,13 @@ def train(args):
                         maxf1 = val_f1
                         print("Saving model to {}".format(save_loc))
                         saver.save(sess, save_loc)
-                        evaluate(test_t, test_v, test_l, True)
+                        # evaluate(test_t, test_v, test_l, True)
             print("Optimization Finished!")
         # Load best model and evaluate model on the test set before applying to production
         saver = tf.train.import_meta_graph(save_loc + '.meta')
         saver.restore(sess, save_loc)
         print("Model from {} restored.".format(save_loc))
-        evaluate(test_t, test_v, test_l, True)
+        # evaluate(test_t, test_v, test_l, True)
 
 def main():
     '''Main method : parse input arguments and train'''
@@ -135,7 +134,7 @@ def main():
     parser.add_argument('--val', type=str, default='data/io/val-io.txt',
                         help='val file location')
     # Word Embeddings
-    parser.add_argument('--emb_loc', type=str, default="model/word-embeddings.pkl",
+    parser.add_argument('--emb_loc', type=str, default="resources/word-embeddings.pkl",
                         help='word2vec embedding location')
     # Hyperparameters
     parser.add_argument('--hid_dim', type=int, default=100, help='dimension of hidden layers')
