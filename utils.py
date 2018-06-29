@@ -5,17 +5,21 @@ import codecs
 import cPickle as pickle
 import re
 import sys
-from os.path import isfile, join
+from os import makedirs
+from os.path import exists, isfile, join
 
-import numpy as np
 import requests
 from gensim.models.keyedvectors import KeyedVectors
 from requests.utils import quote
+
+import numpy as np
 
 GEONAMES_URL = "http://localhost:8091/location?location="
 UNK_FILENAME = "unk.pkl"
 NUM_FILENAME = "num.pkl"
 SPLIT_REGEX = r"(\s|\,|\.|\"|\(|\)|\\|\-|\'|\?|\!|\/|\:|\;|\_|\+|\`|\[|\]|\#|\*|\%|\<|\>|\=)"
+LOC_ANN_TAG = "LOC"
+PRO_ANN_TAG = "EXT"
 
 class Token(object):
     '''Token object which contains fields for offsets and annotation'''
@@ -97,6 +101,34 @@ def case_feature(word):
         else:
             return [0, 0, 1]
 
+def read_annotations(doc_path):
+    '''Read annotations into annotation object'''
+    annotations = []
+    with open(doc_path, 'r') as myfile:
+        doc_lines = myfile.readlines()
+        index = 0
+        while index < len(doc_lines):
+            line = doc_lines[index].strip()
+            parts = line.split("\t")
+            if len(parts) == 3:
+                if parts[1].startswith("Location") or parts[1].startswith("Protein"):
+                    if parts[1].startswith("Location"):
+                        ann_type = LOC_ANN_TAG
+                        offset_text = parts[2]
+                        offset_start = int(parts[1].strip().split()[1])
+                        offset_end = int(parts[1].strip().split()[-1])
+                        index += 2
+                    elif parts[1].startswith("Protein"):
+                        offset_start = int(parts[1].strip().split()[1])
+                        end_parts = doc_lines[index+2].strip().split("\t")
+                        offset_end = int(end_parts[1].strip().split()[-1])
+                        offset_text = parts[2] + "-" + end_parts[2]
+                        ann_type = PRO_ANN_TAG
+                        index += 4
+                    ann = Annotation(offset_text, offset_start, offset_end, ann_type)
+                    annotations.append(ann)
+    return annotations
+
 def tokenize_document(doc_path):
     '''Tokenize the text and preserve offsets'''
     with codecs.open(doc_path, 'r', 'utf-8') as myfile:
@@ -114,43 +146,6 @@ def tokenize_document(doc_path):
         doc_tokens.append(doc_token)
         doc_vocab.add(word)
     return doc_tokens, doc_vocab
-
-def get_namedentities(args, tokens, prediction):
-    '''Get list of named entitiess'''
-    assert len(tokens) == len(prediction)
-    entities = []
-    indices = []
-    found = False
-    entity = ''
-    indstr = ''
-    for i, label in enumerate(prediction):
-        if label == 0:
-            if found:
-                if entity != '':
-                    entity += "_{}".format(i)
-                    try:
-                        indstr += "_{}".format(tokens[i].text)
-                    except UnicodeError:
-                        pass
-                    # indstr += "_{}".format(tokens[i].text)
-            else:
-                if entity == '':
-                    entity = "{}".format(i)
-                    try:
-                        indstr += "_{}".format(tokens[i].text)
-                    except UnicodeError:
-                        pass
-                    # indstr += "_{}".format(tokens[i].text)
-                    found = True
-        else:
-            found = False
-            if entity != '':
-                entities.append(entity)
-                indices.append(indstr)
-                entity = ''
-                indstr = ''
-    assert len(indices) == len(entities)
-    return indices, entities
 
 def get_pred_anns(tokens, prediction):
     '''Get list of named entitiess'''
@@ -170,12 +165,12 @@ def get_pred_anns(tokens, prediction):
                 text = "{}".format(tokens[i].text.encode('ascii', 'ignore').decode('ascii'))
         else:
             if text != '':
-                entity = Annotation(text, start, end, "LOC")
+                entity = Annotation(text, start, end, LOC_ANN_TAG)
                 entities.append(entity)
                 text = ''
     return entities
 
-def get_ne_indexes(args, tags):
+def get_ne_indexes(tags):
     '''Get named entities by indices'''
     entities = []
     found = False
@@ -215,10 +210,10 @@ def write_errors(tokens, true_pos, false_pos, false_neg, fname='results.txt'):
             print("{}\t{}\t{}".format(i, item, tokens[int(index)]), file=rfile)
     rfile.close()
 
-def phrasalf1score(args, tokens, prediction, target, write_err=False):
+def phrasalf1score(tokens, prediction, target, write_err=False):
     '''Compute phrasal F1 score for the results'''
-    gold_entities = get_ne_indexes(args, np.argmax(target, 1))
-    pred_entities = get_ne_indexes(args, np.argmax(prediction, 1))
+    gold_entities = get_ne_indexes(np.argmax(target, 1))
+    pred_entities = get_ne_indexes(np.argmax(prediction, 1))
     # inefficient but easy to understand
     true_pos = [x for x in pred_entities if x in gold_entities]
     false_pos = [x for x in pred_entities if x not in gold_entities]
@@ -230,51 +225,57 @@ def phrasalf1score(args, tokens, prediction, target, write_err=False):
         write_errors(tokens, true_pos, false_pos, false_neg, "runs/ne_{:.5f}".format(f1sc)+".txt")
     return precision, recall, f1sc
 
-def write_results(words, prediction, target, fname='results.txt'):
-    '''Write results to file'''
-    target = np.argmax(target, 1)
-    prediction = np.argmax(prediction, 1)
-    rfile = open(fname, 'w')
-    for i, label in enumerate(target):
-        print("{}\t{}\t{}".format(words[i], prediction[i], label), file=rfile)
-    rfile.close()
-
 def get_ent_concepts(entities):
-    '''Get entity geoname ids'''
+    '''Get entity geoname ids from geoname services project'''
     for entity in entities:
-        url = GEONAMES_URL+quote(entity.text)
-        # print(url)
-        response = requests.get(url)
-        jsondata = response.json()
-        # print(jsondata)
-        if jsondata and int(jsondata["retrieved"]) > 0:
-            # print("Updating")
-            record = jsondata["records"][0]
-            entity.geonameid = record["GeonameId"]
-            entity.lat = record["Latitude"]
-            entity.lon = record["Longitude"]
+        if entity.atype == LOC_ANN_TAG:
+            url = GEONAMES_URL+quote(entity.text)
+            # print(url)
+            response = requests.get(url)
+            jsondata = response.json()
+            # print(jsondata)
+            if jsondata and int(jsondata["retrieved"]) > 0:
+                # print("Updating")
+                record = jsondata["records"][0]
+                entity.geonameid = record["GeonameId"]
+                entity.lat = record["Latitude"]
+                entity.lon = record["Longitude"]
     return entities
 
-def write_pred_and_entities(args, tokens, prediction, pmid):
-    '''Write results to file'''
+def get_entity_annotations(outdir, tokens, prediction, pmid, write_tokens=False):
+    '''Get entity annotations from predictions and write to file for debugging'''
     prediction = np.argmax(prediction, 1)
-    fname = join(args.outdir, pmid + '_pred')
-    rfile = codecs.open(fname, 'w', 'utf-8')
-    for i, label in enumerate(prediction):
-        label = 'I' if label == 0 else 'O'
-        try:
-            print("{}\t{}".format(tokens[i].text, label), file=rfile)
-        except UnicodeError:
-            pass
-    rfile.close()
-    fname = join(args.outdir, pmid + '_nes')
-    rfile = codecs.open(fname, 'w', 'utf-8')
+    if write_tokens:
+        if not exists(outdir):
+            makedirs(outdir)
+        fname = join(outdir, pmid + '_debug.txt')
+        rfile = codecs.open(fname, 'w', 'utf-8')
+        for i, label in enumerate(prediction):
+            label = 'I' if label == 0 else 'O'
+            try:
+                print("{}\t{}".format(tokens[i].text, label), file=rfile)
+            except UnicodeError:
+                print("{}\t{}".format("ERR-TOKEN", label), file=rfile)
+        rfile.close()
     entities = get_pred_anns(tokens, prediction)
-    entities = get_ent_concepts(entities)
+    return entities
+
+def write_annotations(outdir, entities, pmid, normalize=False):
+    '''Write annotations to file in BRAT format'''
+    if not exists(outdir):
+        makedirs(outdir)
+    print("writing results to", outdir)
+    fname = join(outdir, pmid + '.ann')
+    rfile = codecs.open(fname, 'w', 'utf-8')
+    if normalize:
+        entities = get_ent_concepts(entities)
     for index, entity in enumerate(entities):
-        # print("{}".format(entity), file=rfile)
-        print("T{}\tLocation {} {}\t{}".format(index, entity.start, entity.end, entity.text), file=rfile)
-        print("#{}\tAnnotatorNotes T{}\t<latlng>{},{}</latlng><geoID>{}</geoID>".format(index, index, entity.lat, entity.lon, entity.geonameid), file=rfile)
+        if entity.atype == LOC_ANN_TAG:
+            # print("{}".format(entity), file=rfile)
+            print("T{}\tLocation {} {}\t{}".format(index, entity.start, entity.end, entity.text),
+                  file=rfile)
+            print("#{}\tAnnotatorNotes T{}\t<latlng>{},{}</latlng><geoID>{}</geoID>".format(
+                  index, index, entity.lat, entity.lon, entity.geonameid), file=rfile)
     rfile.close()
     print("{}\t{} entities found".format(pmid, len(entities)))
 

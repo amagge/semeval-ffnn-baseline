@@ -105,6 +105,5 @@ pkl/
 .pkl
 runs/
 .vscode
-model/
 trash/
 out/

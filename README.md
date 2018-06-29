@@ -23,11 +23,11 @@ To look at more options for input and output paths, run the command with the ```
 
 2) Train the model by running the following command:
 ```
-python ffnn_train.py
+python train.py
 ```
 To look at more options for input and paths and hyperparameter configurations run the command with the ```-h``` flag.
 
 3) To annotate files using the trained model, run the following command:
 ```
-python ffnn_run.py
+python run.py res test/
 ```

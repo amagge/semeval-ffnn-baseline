@@ -13,8 +13,8 @@ from os.path import isfile, join
 import numpy as np
 import tensorflow as tf
 
-from ff_model import FFModel, ModelHypPrms
-from utils import (WordEmb, f1score, phrasalf1score, write_results)
+from models import FFModel, ModelHypPrms
+from utils import WordEmb, f1score, phrasalf1score
 
 MODEL_NAME = "FFNN"
 TRAIN_FILE_NAME = "train-io.txt"
@@ -64,7 +64,8 @@ def train(args):
     # test_t, test_v, test_l = get_input(args, word_emb, TEST_FILE_NAME)
     n_input = len(train_v[0])
     print("Input size detected ", n_input)
-    hyperparams = ModelHypPrms(n_input, args.n_classes, args.hid_dim, args.lrn_rate)
+    n_classes = 2
+    hyperparams = ModelHypPrms(n_input, n_classes, args.hid_dim, args.lrn_rate)
     # Save hyperparams to disk
     pickle.dump(hyperparams, open(join(args.work_dir, HYPRM_FILE_NAME), "wb"))
     # Create model
@@ -82,15 +83,14 @@ def train(args):
                                           feed_dict={model.input_x: np.asarray(instances),
                                                      model.output_y: np.asarray(labels),
                                                      model.dropout: 1.0})
-            prec, recall, f1sc = f1score(2, prediction, target)
+            prec, recall, f1sc = f1score(n_classes, prediction, target)
             if write_result:
                 print("Found MAX")
                 print("--Tokenwise P:{:.5f}".format(prec), "R:{:.5f}".format(recall),
                       "F1:{:.5f}".format(f1sc))
-                prec, recall, f1sc = phrasalf1score(args, tokens, prediction, target)
+                prec, recall, f1sc = phrasalf1score(tokens, prediction, target)
                 print("--Phrasal P:{:.5f}".format(prec), "R:{:.5f}".format(recall),
                       "F1:{:.5f}".format(f1sc))
-                write_results(tokens, prediction, target, "runs/res_{:.5f}".format(f1sc)+".txt")
             return f1sc
         # Training cycle
         if args.train_epochs > 0:
@@ -138,12 +138,9 @@ def main():
     parser.add_argument('--dropout', type=float, default=0.5, help='dropout probability')
     # Settings
     parser.add_argument('--window_size', type=int, default=5, help='context window size - 3/5/7')
-    parser.add_argument('--dist_epochs', type=int, default=2, help='number of distsup epochs')
     parser.add_argument('--train_epochs', type=int, default=50, help='number of train epochs')
     parser.add_argument('--eval_interval', type=int, default=1, help='evaluate once in _ epochs')
     parser.add_argument('--batch_size', type=int, default=200, help='batch size of training')
-    parser.add_argument('--n_classes', type=int, default=2, choices=range(2, 4),
-                        help='number of classes')
     # Model save and restore paths
     parser.add_argument('--save', type=str, default="model/", help="path to save model")
     args = parser.parse_args()

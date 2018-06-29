@@ -11,11 +11,12 @@ from os import listdir
 from os.path import isfile, join
 import numpy as np
 
-from ff_model import FFModel
-from ffnn_train import HYPRM_FILE_NAME, MODEL_NAME
-from utils import WordEmb, tokenize_document, write_pred_and_entities
+from models import FFModel
+from train import HYPRM_FILE_NAME, MODEL_NAME
+from utils import (WordEmb, tokenize_document, get_entity_annotations,
+                   write_annotations, read_annotations)
 
-def get_input_pmc(args, word_emb_model, input_file):
+def get_input_pmc(word_emb_model, input_file):
     '''loads files for annotation'''
     window_size = 5 # TODO:add to settings
     n_neighbors = int(window_size/2)
@@ -38,8 +39,8 @@ def get_input_pmc(args, word_emb_model, input_file):
     assert len(doc_tokens) == len(instances)
     return doc_tokens, instances
 
-def run(args):
-    '''Run method'''
+def detect(args):
+    '''Method for detection of entities and normalization'''
     word_emb = WordEmb(args)
     print("Loading model")
     hyperparams = pickle.load(open(join(args.work_dir, HYPRM_FILE_NAME), "rb"))
@@ -53,25 +54,39 @@ def run(args):
         saver = tf.train.import_meta_graph(save_loc + '.meta')
         saver.restore(sess, save_loc)
         # load pubmed files
-        pub_files = [f for f in listdir(args.dir) if isfile(join(args.dir, f))]
+        pub_files = [f for f in listdir(args.dir) if isfile(join(args.dir, f)) and f.endswith(".txt")]
         for _, pubfile in enumerate(pub_files):
-            pub_t, pub_v = get_input_pmc(args, word_emb, join(args.dir, pubfile))
+            pub_t, pub_v = get_input_pmc(word_emb, join(args.dir, pubfile))
             prediction = sess.run(model.pred, feed_dict={model.input_x: np.asarray(pub_v),
                                                          model.dropout: 1.0})
-            write_pred_and_entities(args, pub_t, prediction, pubfile.replace(".txt", ""))
+            pmid = pubfile.replace(".txt", "")
+            # Pass last parameter as True if you want to write token predictions to file
+            # You might want to do it for debugging purposes
+            entities = get_entity_annotations(args.outdir, pub_t, prediction, pmid, False)
+            write_annotations(args.outdir, entities, pmid, args.op == "res")
+
+def disambiguate(args):
+    '''Method for disambiguation'''
+    # load pubmed files
+    pub_files = [f for f in listdir(args.dir) if isfile(join(args.dir, f)) and f.endswith(".ann")]
+    for _, pubfile in enumerate(pub_files):
+        entities = read_annotations(join(args.dir, pubfile))
+        pmid = pubfile.replace(".ann", "")
+        write_annotations(args.outdir, entities, pmid, True)
 
 def main():
-    '''Main method : parse input arguments and train'''
+    '''Main method : parse input arguments and run appropriate operation'''
     parser = argparse.ArgumentParser()
     # Input files
+    parser.add_argument('op', type=str, choices=["det", "dis", "res"],
+                        help="Operation to be performed")
     parser.add_argument('dir', type=str,
                         help='Location to dir containing files to be annotated')
     parser.add_argument('--work_dir', type=str, default="resources/",
                         help="working directory containing resource files")
     parser.add_argument('--save', type=str, default="model/", help="path to saved model")
     parser.add_argument('--outdir', type=str, default="out/",
-                        help='Output dir for annotated pubmed files.'+
-                        'Created in same directory by default.')
+                        help='Output dir for annotated pubmed files.')
     # Word Embeddings
     parser.add_argument('--emb_loc', type=str,
                         default="resources/wikipedia-pubmed-and-PMC-w2v.bin",
@@ -79,7 +94,11 @@ def main():
     parser.add_argument('--embvocab', type=int, default=-1,
                         help='load top n words in word emb. -1 for all.')
     args = parser.parse_args()
-    run(args)
+    if args.op in ["det", "res"]:
+        detect(args)
+    elif args.op == "dis":
+        disambiguate(args)
+
 
 if __name__ == '__main__':
     main()

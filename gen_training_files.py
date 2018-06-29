@@ -10,43 +10,13 @@ import codecs
 import numpy as np
 from gensim.models.keyedvectors import KeyedVectors
 
-from utils import tokenize_document, Annotation
-from utils import UNK_FILENAME, NUM_FILENAME
-from ffnn_train import TRAIN_FILE_NAME, VALID_FILE_NAME
-LOC_ANN_TAG = "LOC"
-PRO_ANN_TAG = "EXT"
+from utils import tokenize_document, read_annotations
+from utils import UNK_FILENAME, NUM_FILENAME, LOC_ANN_TAG, PRO_ANN_TAG
+from train import TRAIN_FILE_NAME, VALID_FILE_NAME
 WORDEMB_FILENAME = "word-embeddings.pkl"
 
-def read_annotations(doc_path):
-    '''Read annotations into annotation object'''
-    annotations = []
-    with open(doc_path, 'r') as myfile:
-        doc_lines = myfile.readlines()
-        index = 0
-        while index < len(doc_lines):
-            line = doc_lines[index].strip()
-            parts = line.split("\t")
-            if len(parts) == 3:
-                if parts[1].startswith("Location") or parts[1].startswith("Protein"):
-                    if parts[1].startswith("Location"):
-                        ann_type = LOC_ANN_TAG
-                        offset_text = parts[2]
-                        offset_start = int(parts[1].strip().split()[1])
-                        offset_end = int(parts[1].strip().split()[-1])
-                        index += 2
-                    elif parts[1].startswith("Protein"):
-                        offset_start = int(parts[1].strip().split()[1])
-                        end_parts = doc_lines[index+2].strip().split("\t")
-                        offset_end = int(end_parts[1].strip().split()[-1])
-                        offset_text = parts[2] + "-" + end_parts[2]
-                        ann_type = PRO_ANN_TAG
-                        index += 4
-                    ann = Annotation(offset_text, offset_start, offset_end, ann_type)
-                    annotations.append(ann)
-    return annotations
-
 def load_train_data(args, train_dir):
-    """load training data"""
+    """load training data and write to IO formatted training and validation files"""
     vocab = set()
     tfile = codecs.open(join(args.work_dir, TRAIN_FILE_NAME), 'w', 'utf-8')
     vfile = codecs.open(join(args.work_dir, VALID_FILE_NAME), 'w', 'utf-8')
