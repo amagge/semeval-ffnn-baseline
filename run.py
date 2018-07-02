@@ -3,12 +3,11 @@ A Deep Neural network with two layers for independent classification
 '''
 
 from __future__ import print_function
-import sys
 import argparse
 import pickle
-import tensorflow as tf
 from os import listdir
 from os.path import isfile, join
+import tensorflow as tf
 import numpy as np
 
 from models import FFModel
@@ -18,7 +17,7 @@ from utils import (WordEmb, tokenize_document, get_entity_annotations,
 
 def get_input_pmc(word_emb_model, input_file):
     '''loads files for annotation'''
-    window_size = 5 # TODO:add to settings
+    window_size = 5 # By default
     n_neighbors = int(window_size/2)
     doc_tokens, _ = tokenize_document(input_file)
     # print("processing file: {} and neighbors = {}".format(input_file, n_neighbors))

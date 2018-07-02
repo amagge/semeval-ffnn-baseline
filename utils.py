@@ -9,8 +9,8 @@ from os import makedirs
 from os.path import exists, isfile, join
 
 import requests
-from gensim.models.keyedvectors import KeyedVectors
 from requests.utils import quote
+from gensim.models.keyedvectors import KeyedVectors
 
 import numpy as np
 

@@ -6,10 +6,7 @@ from __future__ import print_function
 
 import argparse
 import pickle
-from os import listdir
-from os.path import isfile, join
-
-# import sys, io, codecs
+from os.path import join
 import numpy as np
 import tensorflow as tf
 

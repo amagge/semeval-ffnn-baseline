@@ -2,7 +2,7 @@
 This project presents a baseline system for Task 12 i.e. Named Entity Recognition (NER) and Concept Resolution subtasks that uses a 2-layer feedforward neural network.
   
 Dependencies:
-1) ```python``` tested with version 2.7
+1) ```python``` tested with versions 2.7 and 3.5
 2) ```geonames-services``` for disabmiguation and normalization
 
 Install python dependencies:
