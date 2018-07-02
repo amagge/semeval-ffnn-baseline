@@ -2,7 +2,7 @@
 from __future__ import print_function
 
 import codecs
-import cPickle as pickle
+import pickle
 import re
 import sys
 from os import makedirs

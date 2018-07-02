@@ -5,7 +5,7 @@ A Deep Neural network with two layers for independent classification
 from __future__ import print_function
 import sys
 import argparse
-import cPickle as pickle
+import pickle
 import tensorflow as tf
 from os import listdir
 from os.path import isfile, join
