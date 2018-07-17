@@ -3,7 +3,7 @@ This project presents a baseline system for Task 12 i.e. Named Entity Recognitio
   
 Dependencies:
 1) ```python``` tested with versions 2.7 and 3.5
-2) ```geonames-services``` for disabmiguation and normalization
+2) [geonames-services](https://github.com/amagge/geonames-service) for disabmiguation and normalization. Alternatively, you can use GeoNames's search API (with a few modifications in this system).
 
 Install python dependencies:
 ```

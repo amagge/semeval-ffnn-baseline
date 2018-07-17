@@ -1,13 +1,12 @@
 '''
-A Deep Neural network with two layers for independent classification
+A Feed-forward Neural network with two layers for NER task
 '''
 
 from __future__ import print_function
-import sys
 import tensorflow as tf
 
 class ModelHypPrms(object):
-    '''Feed-Forward model'''
+    '''Class for storing model hyperparameters'''
     def __init__(self, n_input, n_classes, hid_dim, lrn_rate):
         self.n_input = n_input
         self.n_classes = n_classes
