@@ -14,6 +14,14 @@ from gensim.models.keyedvectors import KeyedVectors
 
 import numpy as np
 
+# Fix for unicode encoding errors
+# Python isn't the best for this
+reload(sys)
+sys.setdefaultencoding('utf8')
+
+EXT_GLL_REGEX = r"<latl.?ng>(.*)</latl.?ng>"
+EXT_GID_REGEX = r"<geoID>(.*)</geoID>"
+
 GEONAMES_URL = "http://localhost:8091/location?location="
 UNK_FILENAME = "unk.pkl"
 NUM_FILENAME = "num.pkl"
@@ -105,28 +113,83 @@ def read_annotations(doc_path):
     '''Read annotations into annotation object'''
     annotations = []
     with open(doc_path, 'r') as myfile:
+        print("Reading", doc_path)
         doc_lines = myfile.readlines()
         index = 0
+        span_map = {}
         while index < len(doc_lines):
             line = doc_lines[index].strip()
             parts = line.split("\t")
-            if len(parts) == 3:
-                if parts[1].startswith("Location") or parts[1].startswith("Protein"):
-                    if parts[1].startswith("Location"):
+            # There can exist more than 2 tab spaces if the text itself has tab spaces
+            if len(parts) >= 3:
+                if parts[0].startswith("T") or parts[0].startswith("#"):
+                    if parts[0].startswith("T")  and parts[1].startswith("Location"):
+                        ann_id = parts[0].strip()
+                        offset_text = ""
+                        # for cases when text has tab spaces
+                        for part in parts[2:]:
+                            offset_text += part
+                        # for cases when text has new lines
+                        while index+1 < len(doc_lines) and len(doc_lines[index+1].split("\t")) < 3:
+                            offset_text += doc_lines[index+1]
+                            index += 1
                         ann_type = LOC_ANN_TAG
-                        offset_text = parts[2]
+                        offset_text = offset_text.strip()
                         offset_start = int(parts[1].strip().split()[1])
                         offset_end = int(parts[1].strip().split()[-1])
-                        index += 2
-                    elif parts[1].startswith("Protein"):
+                        ann = Annotation(offset_text, offset_start, offset_end, ann_type)
+                        span_map[ann_id] = ann
+                        index += 1
+                    elif parts[0].startswith("#") and parts[1].startswith("AnnotatorNotes"):
+                        # Extract geonameid
+                        id_parts = doc_lines[index].strip().split("\t")
+                        ann_id = (id_parts[1].split(" ")[1]).strip()
+                        id_search = re.search(EXT_GID_REGEX, id_parts[2])
+                        geonameid = id_search.group(1) if id_search else "-1"
+                        # if not id_search:
+                        #     print(doc_path+"\t"+ann_id+"\tNO GID")
+                        id_search = re.search(EXT_GLL_REGEX, id_parts[2])
+                        if id_search:
+                            latlng = id_search.group(1)
+                            lat = latlng.split(",")[0] if latlng != "NA" else "0"
+                            lon = latlng.split(",")[1] if latlng != "NA" else "0"
+                        else:
+                            print("ERROR: Could not extract Lat Long parts "+
+                                  ann_id + " " + id_parts[2] + " in " + doc_path)
+                        if ann_id in span_map:
+                            ann = span_map[ann_id]
+                            ann = Annotation(ann.text, ann.start, ann.end, ann.atype,
+                                             geonameid, lat, lon)
+                            annotations.append(ann)
+                        else:
+                            print("ERROR:", ann_id, "not found")
+                        index += 1
+                    elif parts[0].startswith("T") and parts[1].startswith("Protein"):
+                        # Extract exclusion section. We will not consider text from this span
                         offset_start = int(parts[1].strip().split()[1])
+                        # Check if next line ends with BEGIN
+                        if not doc_lines[index+1].strip().endswith("BEGIN"):
+                            print("Error: invalid protein", index+1, "Entity:", parts[1])
                         end_parts = doc_lines[index+2].strip().split("\t")
                         offset_end = int(end_parts[1].strip().split()[-1])
                         offset_text = parts[2] + "-" + end_parts[2]
+                        # Check if next line ends with END
+                        if not doc_lines[index+3].strip().endswith("END"):
+                            print("Error: invalid protein", index+3, "Entity:", parts[1])
                         ann_type = PRO_ANN_TAG
                         index += 4
-                    ann = Annotation(offset_text, offset_start, offset_end, ann_type)
-                    annotations.append(ann)
+                        ann = Annotation(offset_text, offset_start, offset_end, ann_type)
+                        annotations.append(ann)
+                    else:
+                        print("Error: invalid line", index, "Entity:", parts[1])
+                        index += 1
+                else:
+                    print("Error: invalid line", index, "Entity:", parts[1])
+                    index += 1
+            else:
+                print("Error: invalid line", index, "Tab separated entries:", len(parts))
+                index += 1
+        # Now check
     return annotations
 
 def tokenize_document(doc_path):
@@ -147,8 +210,11 @@ def tokenize_document(doc_path):
         doc_vocab.add(word)
     return doc_tokens, doc_vocab
 
-def get_pred_anns(tokens, prediction):
+def get_pred_anns(tokens, prediction, doc_path):
     '''Get list of named entitiess'''
+    with codecs.open(doc_path, 'r', 'utf-8') as myfile:
+        # Read text directly from file
+        doc_text = myfile.read()
     assert len(tokens) == len(prediction)
     entities = []
     text = ''
@@ -158,13 +224,14 @@ def get_pred_anns(tokens, prediction):
         if label == 0:
             if text != '':
                 end = tokens[i].end
-                text += " {}".format(tokens[i].text.encode('ascii', 'ignore').decode('ascii'))
+                text += u" {}".format(tokens[i].text.encode('utf-8'))
             else:
                 start = tokens[i].start
                 end = tokens[i].end
-                text = "{}".format(tokens[i].text.encode('ascii', 'ignore').decode('ascii'))
+                text = u"{}".format(tokens[i].text.encode('utf-8'))
         else:
             if text != '':
+                text = doc_text[start:end]
                 entity = Annotation(text, start, end, LOC_ANN_TAG)
                 entities.append(entity)
                 text = ''
@@ -227,22 +294,26 @@ def phrasalf1score(tokens, prediction, target, write_err=False):
 
 def get_ent_concepts(entities):
     '''Get entity geoname ids from geoname services project'''
-    for entity in entities:
-        if entity.atype == LOC_ANN_TAG:
-            url = GEONAMES_URL+quote(entity.text)
-            # print(url)
-            response = requests.get(url)
-            jsondata = response.json()
-            # print(jsondata)
-            if jsondata and int(jsondata["retrieved"]) > 0:
-                # print("Updating")
-                record = jsondata["records"][0]
-                entity.geonameid = record["GeonameId"]
-                entity.lat = record["Latitude"]
-                entity.lon = record["Longitude"]
+    try:
+        for entity in entities:
+            if entity.atype == LOC_ANN_TAG:
+                loc = entity.text
+                url = GEONAMES_URL+quote(loc.encode('utf8'))
+                response = requests.get(url)
+                jsondata = response.json()
+                # print(jsondata)
+                if jsondata and int(jsondata["retrieved"]) > 0:
+                    # print("Updating")
+                    record = jsondata["records"][0]
+                    entity.geonameid = record["GeonameId"]
+                    entity.lat = record["Latitude"]
+                    entity.lon = record["Longitude"]
+    except ConnectionError as e:
+        # Needs geonames-service installation
+        print("ERROR:", e, "Can't connect to geonames service.", GEONAMES_URL)
     return entities
 
-def get_entity_annotations(outdir, tokens, prediction, pmid, write_tokens=False):
+def get_entity_annotations(outdir, tokens, prediction, pmid, pmfile, write_tokens=False):
     '''Get entity annotations from predictions and write to file for debugging'''
     prediction = np.argmax(prediction, 1)
     if write_tokens:
@@ -257,7 +328,7 @@ def get_entity_annotations(outdir, tokens, prediction, pmid, write_tokens=False)
             except UnicodeError:
                 print("{}\t{}".format("ERR-TOKEN", label), file=rfile)
         rfile.close()
-    entities = get_pred_anns(tokens, prediction)
+    entities = get_pred_anns(tokens, prediction, pmfile)
     return entities
 
 def write_annotations(outdir, entities, pmid, normalize=False):
@@ -266,16 +337,15 @@ def write_annotations(outdir, entities, pmid, normalize=False):
         makedirs(outdir)
     print("writing results to", outdir)
     fname = join(outdir, pmid + '.ann')
-    rfile = codecs.open(fname, 'w', 'utf-8')
+    rfile = codecs.open(fname, 'w', encoding="utf-8")
     if normalize:
         entities = get_ent_concepts(entities)
     for index, entity in enumerate(entities):
         if entity.atype == LOC_ANN_TAG:
-            # print("{}".format(entity), file=rfile)
-            print("T{}\tLocation {} {}\t{}".format(index, entity.start, entity.end, entity.text),
-                  file=rfile)
+            print(u"T{}\tLocation {} {}\t{}".format(index, entity.start, entity.end, entity.text),
+                file=rfile)
             print("#{}\tAnnotatorNotes T{}\t<latlng>{},{}</latlng><geoID>{}</geoID>".format(
-                  index, index, entity.lat, entity.lon, entity.geonameid), file=rfile)
+                index, index, entity.lat, entity.lon, entity.geonameid), file=rfile)
     rfile.close()
     print("{}\t{} entities found".format(pmid, len(entities)))
 
@@ -313,4 +383,4 @@ def make_unicode(input_data):
         input_data = input_data.decode('utf-8')
         return input_data
     else:
-        return input
+        return input_data

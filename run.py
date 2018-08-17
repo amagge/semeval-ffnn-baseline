@@ -61,7 +61,7 @@ def detect(args):
             pmid = pubfile.replace(".txt", "")
             # Pass last parameter as True if you want to write token predictions to file
             # You might want to do it for debugging purposes
-            entities = get_entity_annotations(args.outdir, pub_t, prediction, pmid, False)
+            entities = get_entity_annotations(args.outdir, pub_t, prediction, pmid, join(args.dir, pubfile), False)
             write_annotations(args.outdir, entities, pmid, args.op == "res")
 
 def disambiguate(args):
