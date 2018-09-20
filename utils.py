@@ -9,6 +9,7 @@ from os import makedirs
 from os.path import exists, isfile, join
 
 import requests
+from requests import ConnectionError
 from requests.utils import quote
 from gensim.models.keyedvectors import KeyedVectors
 
@@ -19,7 +20,7 @@ import numpy as np
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-EXT_GLL_REGEX = r"<latl.?ng>(.*)</latl.?ng>"
+EXT_GLL_REGEX = r"<latlng>(.*)</latlng>"
 EXT_GID_REGEX = r"<geoID>(.*)</geoID>"
 
 GEONAMES_URL = "http://localhost:8091/location?location="
@@ -146,8 +147,8 @@ def read_annotations(doc_path):
                         ann_id = (id_parts[1].split(" ")[1]).strip()
                         id_search = re.search(EXT_GID_REGEX, id_parts[2])
                         geonameid = id_search.group(1) if id_search else "-1"
-                        # if not id_search:
-                        #     print(doc_path+"\t"+ann_id+"\tNO GID")
+                        if not id_search:
+                            print(doc_path+"\t"+ann_id+"\tNO GID")
                         id_search = re.search(EXT_GLL_REGEX, id_parts[2])
                         if id_search:
                             latlng = id_search.group(1)
@@ -158,6 +159,7 @@ def read_annotations(doc_path):
                                   ann_id + " " + id_parts[2] + " in " + doc_path)
                         if ann_id in span_map:
                             ann = span_map[ann_id]
+                            del span_map[ann_id] #remove from map
                             ann = Annotation(ann.text, ann.start, ann.end, ann.atype,
                                              geonameid, lat, lon)
                             annotations.append(ann)
@@ -189,7 +191,9 @@ def read_annotations(doc_path):
             else:
                 print("Error: invalid line", index, "Tab separated entries:", len(parts))
                 index += 1
-        # Now check
+        # Now check for annotations without ids and add them
+        for ann_id, ann in span_map.items():
+            annotations.append(ann)
     return annotations
 
 def tokenize_document(doc_path):
@@ -296,6 +300,7 @@ def get_ent_concepts(entities):
     '''Get entity geoname ids from geoname services project'''
     try:
         for entity in entities:
+            # print(entity)
             if entity.atype == LOC_ANN_TAG:
                 loc = entity.text
                 url = GEONAMES_URL+quote(loc.encode('utf8'))
