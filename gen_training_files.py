@@ -1,6 +1,7 @@
 '''Create smaller efficient embeddings'''
 from __future__ import print_function
 
+import sys
 import argparse
 import pickle
 import random
@@ -12,18 +13,17 @@ from gensim.models.keyedvectors import KeyedVectors
 
 from utils import tokenize_document, read_annotations
 from utils import UNK_FILENAME, NUM_FILENAME, LOC_ANN_TAG, PRO_ANN_TAG
-from train import TRAIN_FILE_NAME, VALID_FILE_NAME
+from train import TRAIN_FILE_NAME, VALID_FILE_NAME, TEST_FILE_NAME
 WORDEMB_FILENAME = "word-embeddings.pkl"
 
-def load_train_data(args, train_dir):
+def load_train_data(args, train_dir, valid_prop=0.10):
     """load training data and write to IO formatted training and validation files"""
     vocab = set()
     tfile = codecs.open(join(args.work_dir, TRAIN_FILE_NAME), 'w', 'utf-8')
     vfile = codecs.open(join(args.work_dir, VALID_FILE_NAME), 'w', 'utf-8')
     txt_files = [f for f in listdir(train_dir) if f.endswith(".txt")]
     random.shuffle(txt_files)
-    # keeping the first 10% of the files for validation
-    num_val_files = int(len(txt_files)*0.10)
+    num_val_files = int(len(txt_files)*valid_prop)
     for findex, txt_file in enumerate(txt_files):
         print("Reading", txt_file)
         rfile = vfile if findex < num_val_files else tfile
@@ -46,9 +46,38 @@ def load_train_data(args, train_dir):
     vfile.close()
     return vocab
 
+def load_test_data(args, test_dir):
+    """load test data and write to IO formatted file"""
+    vocab = set()
+    tfile = codecs.open(join(args.work_dir, "test-io.txt"), 'w', 'utf-8')
+    txt_files = [f for f in listdir(test_dir) if f.endswith(".txt")]
+    for _, txt_file in enumerate(txt_files):
+        print("Reading", txt_file)
+        doc_tokens, file_vocab = tokenize_document(join(test_dir, txt_file))
+        vocab = vocab.union(file_vocab)
+        annotations = read_annotations(join(test_dir, txt_file[:-3]+"ann"))
+        for token in doc_tokens:
+            ignore_token = False
+            for ann in annotations:
+                if token.start >= ann.start and token.end <= ann.end:
+                    # Change this for IOB annotations
+                    if ann.atype == LOC_ANN_TAG:
+                        token.encoding = "I-LOC"
+                    if ann.atype == PRO_ANN_TAG:
+                        ignore_token = True
+                    break
+            if not ignore_token:
+                print(token.text + "\t" + token.encoding, file=tfile)
+    tfile.close()
+    return vocab
+
 def create_embeddings(args):
     '''Create embeddings object and dump pickle for use in subsequent models'''
-    vocab = load_train_data(args, args.train_corpus)
+    # keeping the first 10% of the files for validation
+    vocab = load_train_data(args, args.train_corpus, 0.10)
+    if args.eval_corpus:
+        test_vocab = load_test_data(args, args.eval_corpus)
+        vocab = vocab.union(test_vocab)
     print("Total vocab:", len(vocab))
     print("Loading word embeddings:", args.emb_loc)
     unk_words = set()
@@ -91,6 +120,8 @@ def main():
     # Input and Output paths
     parser.add_argument('-t', '--train_corpus', type=str, default='data/train/',
                         help='path to dir where training corpus files are stored')
+    parser.add_argument('-v', '--eval_corpus', type=str, default=None,
+                        help='path to dir where evaluation corpus files are stored')
     parser.add_argument('-e', '--emb_loc', type=str,
                         default='resources/wikipedia-pubmed-and-PMC-w2v.bin',
                         help='path to the word2vec embedding location')

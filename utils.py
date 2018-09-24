@@ -21,7 +21,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 EXT_GLL_REGEX = r"<latlng>(.*)</latlng>"
-EXT_GID_REGEX = r"<geoID>(.*)</geoID>"
+EXT_GID_REGEX = r"<geoID>( *[0-9]{4,} *| *NA *)</geoID>"
 
 GEONAMES_URL = "http://localhost:8091/location?location="
 UNK_FILENAME = "unk.pkl"
@@ -148,7 +148,7 @@ def read_annotations(doc_path):
                         id_search = re.search(EXT_GID_REGEX, id_parts[2])
                         geonameid = id_search.group(1) if id_search else "-1"
                         if not id_search:
-                            print(doc_path+"\t"+ann_id+"\tNO GID")
+                            print(doc_path+"\t"+ann_id+"\tNO GID found in"+id_parts[2])
                         id_search = re.search(EXT_GLL_REGEX, id_parts[2])
                         if id_search:
                             latlng = id_search.group(1)

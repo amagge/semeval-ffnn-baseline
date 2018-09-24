@@ -58,7 +58,7 @@ def train(args):
     # Load training and validation tokens, vector instances (input vector) and labels
     train_t, train_v, train_l = get_input(args, word_emb, join(args.work_dir, TRAIN_FILE_NAME))
     valid_t, valid_v, valid_l = get_input(args, word_emb, join(args.work_dir, VALID_FILE_NAME))
-    # test_t, test_v, test_l = get_input(args, word_emb, TEST_FILE_NAME)
+    # test_t, test_v, test_l = get_input(args, word_emb, join(args.work_dir, TEST_FILE_NAME))
     n_input = len(train_v[0])
     print("Input size detected ", n_input)
     n_classes = 2
@@ -80,12 +80,10 @@ def train(args):
                                           feed_dict={model.input_x: np.asarray(instances),
                                                      model.output_y: np.asarray(labels),
                                                      model.dropout: 1.0})
-            prec, recall, f1sc = f1score(n_classes, prediction, target)
+            prec, recall, f1sc = phrasalf1score(tokens, prediction, target)
             if write_result:
-                print("Found MAX")
-                print("--Tokenwise P:{:.5f}".format(prec), "R:{:.5f}".format(recall),
-                      "F1:{:.5f}".format(f1sc))
-                prec, recall, f1sc = phrasalf1score(tokens, prediction, target)
+                print("Found MAX. Printing results.")
+                prec, recall, f1sc = phrasalf1score(tokens, prediction, target, True)
                 print("--Phrasal P:{:.5f}".format(prec), "R:{:.5f}".format(recall),
                       "F1:{:.5f}".format(f1sc))
             return f1sc
@@ -130,14 +128,14 @@ def main():
     parser.add_argument('--emb_loc', type=str, default="resources/word-embeddings.pkl",
                         help='word2vec embedding location')
     # Hyperparameters
-    parser.add_argument('--hid_dim', type=int, default=100, help='dimension of hidden layers')
+    parser.add_argument('--hid_dim', type=int, default=200, help='dimension of hidden layers')
     parser.add_argument('--lrn_rate', type=float, default=0.001, help='learning rate')
     parser.add_argument('--dropout', type=float, default=0.5, help='dropout probability')
     # Settings
     parser.add_argument('--window_size', type=int, default=5, help='context window size - 3/5/7')
     parser.add_argument('--train_epochs', type=int, default=50, help='number of train epochs')
     parser.add_argument('--eval_interval', type=int, default=1, help='evaluate once in _ epochs')
-    parser.add_argument('--batch_size', type=int, default=200, help='batch size of training')
+    parser.add_argument('--batch_size', type=int, default=50, help='batch size of training')
     # Model save and restore paths
     parser.add_argument('--save', type=str, default="model/", help="path to save model")
     args = parser.parse_args()
